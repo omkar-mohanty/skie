@@ -114,7 +114,7 @@ pub enum HashEngineError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{RngCore, thread_rng};
+    use rand::{RngCore, rng};
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -159,7 +159,7 @@ mod tests {
     fn test_determinism() -> Result<()> {
         let engine = HashEngine::new(test_config())?;
         let mut data = vec![0u8; 1024 * 100];
-        thread_rng().fill_bytes(&mut data);
+        rng().fill_bytes(&mut data);
         let mut file = NamedTempFile::new()?;
         let _ = file.write_all(&data)?;
 
@@ -199,7 +199,7 @@ mod tests {
         let mut content = vec![0u8; 1024 * 1024];
         for _ in 0..50 {
             // 50MB test
-            thread_rng().fill_bytes(&mut content);
+            rng().fill_bytes(&mut content);
             tmp_file.write_all(&content)?;
         }
         
