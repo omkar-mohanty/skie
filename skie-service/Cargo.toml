@@ -8,7 +8,7 @@ skie-common = {workspace = true}
 notify-debouncer-full = { version = "0.7.0", features = ["crossbeam-channel"] }
 tokio = { version = "1", features = ["full"] }
 crossbeam-channel = "0.5"
-toml = "0.9.11"
-log = "0.4.29"
-env_logger = "0.11.8"
+toml = "0.9"
+log = "0.4"
+env_logger = "0.11"
 anyhow = "1"
