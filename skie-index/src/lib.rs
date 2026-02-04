@@ -8,7 +8,7 @@ use skie_common::IndexEngineConfig;
 use std::{fs::File, path::PathBuf};
 use thiserror::Error;
 
-type Result<E> = std::result::Result<E, HashEngineError>;
+pub(crate) type Result<E> = std::result::Result<E, HashEngineError>;
 
 #[derive(Debug)]
 pub struct HashData {
