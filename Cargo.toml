@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "skie-service",
+    "skie-cli",
+    "skie-index", "skie-common",
+]
+resolver = "2"
+
+[workspace.dependencies]
+skie-common = {path = "skie-common"}
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2"

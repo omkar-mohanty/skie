@@ -1,0 +1,17 @@
+[package]
+name = "skie-index"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+skie-common = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+rayon = "1"
+fastcdc = "3"
+crossbeam-channel = "0.5"
+blake3 = "1.8"
+
+[dev-dependencies]
+rand = "0.8"
+tempfile = "3"
