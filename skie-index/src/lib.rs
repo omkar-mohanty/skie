@@ -5,7 +5,7 @@ use rayon::{
     iter::{ParallelBridge, ParallelIterator},
 };
 use skie_common::IndexEngineConfig;
-use std::io::{BufReader, Read};
+use std::{fs::File, path::PathBuf};
 use thiserror::Error;
 
 type Result<E> = std::result::Result<E, HashEngineError>;
@@ -40,52 +40,69 @@ impl HashEngine {
         })
     }
 
-    pub fn process<R: Read + Send>(
-        &self,
-        source: BufReader<R>,
-    ) -> impl Iterator<Item = Result<HashData>> {
-        let (tx, rx) = crossbeam_channel::bounded(self.config.channel_size);
+    pub fn process(&self, source: PathBuf) -> impl Iterator<Item = Result<HashData>> {
+        let (tx, rx) = crossbeam_channel::bounded::<Result<(usize, ChunkData)>>(self.config.channel_size);
         let (output_tx, output_rx) = crossbeam_channel::bounded(self.config.channel_size);
-        self.thread_pool.scope(move |s| {
-            s.spawn(move |_| {
-                let chunker = StreamCDC::new(
-                    source,
-                    self.config.min_chunk_size,
-                    self.config.avg_chunk_size,
-                    self.config.max_chunk_size,
-                );
 
-                for (i, chunk) in chunker.enumerate() {
-                    let msg = chunk.map_err(HashEngineError::ChunkError);
-                    if tx.send((i, msg)).is_err() {
-                        break;
-                    }
+        let min_chunk_size = self.config.min_chunk_size;
+        let avg_chunk_size = self.config.avg_chunk_size;
+        let max_chunk_size = self.config.max_chunk_size;
+
+        self.thread_pool.spawn(move || {
+            let source = match File::open(source) {
+                Ok(file) => file,
+                Err(msg) => {
+                    let err = Err(HashEngineError::IoError(msg));
+                    let _ =  tx.send(err);
+                    return;
                 }
-            });
+            };
 
-            // 1. Hashing necessarily may not happen in the order the chunks come in.
-            // To counter this we hash the chunks which and send them to the receiver and the sent chunks may be out of order.
-            self.thread_pool.spawn(move || {
-                rx.into_iter().par_bridge().for_each(|(index, chunk_res)| {
-                    let hash_data = match chunk_res {
-                        Ok(chunk) => {
-                            let chunk = chunk.data;
-                            let hash = blake3::hash(&chunk);
-                            Ok(HashData { index, chunk, hash })
-                        }
-                        Err(msg) => Err(msg),
-                    };
+            let stream_cdc = StreamCDC::new(source, 
+                min_chunk_size,
+                avg_chunk_size,
+                max_chunk_size);
 
-                    let _ = output_tx.send(hash_data);
-                });
+            for (index, chunk_res) in stream_cdc.enumerate() {
+
+                let res = match chunk_res {
+                    Ok(chunk_data) => Ok((index, chunk_data)),
+                    Err(msg) => Err(HashEngineError::ChunkError(msg))
+                };
+
+                let _ = tx.send(res);
+            }
+        });
+
+        self.thread_pool.spawn(move || {
+            rx.iter().par_bridge().
+            for_each(|chunk_res| {
+                let res =  match chunk_res {
+                    Ok((index, chunkdata)) => {
+                        let chunk = chunkdata.data;
+                        let hash = blake3::hash(&chunk);
+                        let hash_data = HashData {
+                            index,
+                            hash,
+                            chunk,
+                        };
+                        Ok(hash_data)
+                    },
+                    Err(msg) => Err(msg)
+                };
+
+                let _ = output_tx.send(res);
             });
         });
+
         output_rx.into_iter()
     }
 }
 
 #[derive(Debug, Error)]
 pub enum HashEngineError {
+    #[error("Index Engine: Io Error")]
+    IoError(#[from] std::io::Error),
     #[error("Index Engine: Send Data Error")]
     SendDataError(#[from] crossbeam_channel::SendError<ChunkData>),
     #[error("Index Engine: Chunk error")]
@@ -96,9 +113,9 @@ pub enum HashEngineError {
 
 #[cfg(test)]
 mod tests {
-use super::*;
+    use super::*;
     use rand::{RngCore, thread_rng};
-    use std::io::{Cursor, Write};
+    use std::io::Write;
     use tempfile::NamedTempFile;
 
     fn test_config() -> IndexEngineConfig {
@@ -115,10 +132,9 @@ use super::*;
     #[test]
     fn test_empty_file() -> Result<()> {
         let engine = HashEngine::new(test_config())?;
-        let reader = BufReader::new(Cursor::new(vec![]));
-
-        // Testing the iterator: collect into a Vec
-        let results: Vec<_> = engine.process(reader).collect();
+        let file = NamedTempFile::new()?;
+        let source = file.path().to_path_buf();
+        let results: Vec<_> = engine.process(source).collect();
         assert!(results.is_empty(), "Empty file should produce zero chunks");
         Ok(())
     }
@@ -126,13 +142,14 @@ use super::*;
     #[test]
     fn test_small_file_single_chunk() -> Result<()> {
         let engine = HashEngine::new(test_config())?;
-        let data = vec![0u8; 1024]; 
-        let reader = BufReader::new(Cursor::new(data.clone()));
-
+        let data = vec![0u8; 1024];
+        let mut file = NamedTempFile::new()?;
+        let _ = file.write_all(&data);
+        let source = file.path().to_path_buf();
         // Iterators let us just take the first item
-        let mut it = engine.process(reader);
+        let mut it = engine.process(source);
         let first = it.next().expect("Should have one chunk")?;
-        
+
         assert_eq!(first.hash, blake3::hash(&data));
         assert_eq!(first.index, 0);
         Ok(())
@@ -143,13 +160,23 @@ use super::*;
         let engine = HashEngine::new(test_config())?;
         let mut data = vec![0u8; 1024 * 100];
         thread_rng().fill_bytes(&mut data);
+        let mut file = NamedTempFile::new()?;
+        let _ = file.write_all(&data)?;
+
+        let source_first = file.path().to_path_buf();
+        let source_second = file.path().to_path_buf();
 
         // Determinism is tricky with par_bridge because order is random.
         // We collect and sort by index to verify the content is identical.
-        let mut res_1: Vec<_> = engine.process(BufReader::new(Cursor::new(&data)))
-            .map(|r| r.unwrap()).collect();
-        let mut res_2: Vec<_> = engine.process(BufReader::new(Cursor::new(&data)))
-            .map(|r| r.unwrap()).collect();
+
+        let mut res_1: Vec<_> = engine
+            .process(source_first)
+            .map(|r| r.unwrap())
+            .collect();
+        let mut res_2: Vec<_> = engine
+            .process(source_second)
+            .map(|r| r.unwrap())
+            .collect();
 
         res_1.sort_by_key(|d| d.index);
         res_2.sort_by_key(|d| d.index);
@@ -168,22 +195,20 @@ use super::*;
         config.num_threads = 8;
         let engine = HashEngine::new(config)?;
 
-        let mut tmp_file = NamedTempFile::new().unwrap();
-        let mut content = vec![0u8; 1024 * 1024]; 
-        for _ in 0..50 { // 50MB test
+        let mut tmp_file = NamedTempFile::new()?;
+        let mut content = vec![0u8; 1024 * 1024];
+        for _ in 0..50 {
+            // 50MB test
             thread_rng().fill_bytes(&mut content);
-            tmp_file.write_all(&content).unwrap();
+            tmp_file.write_all(&content)?;
         }
-
-        let file = std::fs::File::open(tmp_file.path()).unwrap();
-        let reader = BufReader::with_capacity(1024 * 1024, file);
-
-        let start = std::time::Instant::now();
         
+        let path = tmp_file.path().to_path_buf();
+        let start = std::time::Instant::now();
+
         // Use the iterator to count chunks without holding all 50MB in RAM
-        let _ = engine.process(reader)
-            .collect::<Vec<_>>();
-            
+        let _ = engine.process(path).collect::<Vec<_>>();
+
         let duration = start.elapsed();
         println!("Processed 50MB in {:?}", duration);
         Ok(())
