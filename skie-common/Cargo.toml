@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
-directories = "6.0"
+directories = "6.0.0"
+
