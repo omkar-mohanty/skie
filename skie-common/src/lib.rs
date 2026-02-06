@@ -82,7 +82,7 @@ impl Default for PrivacyConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexEngineConfig {
     pub min_chunk_size: u32,
     pub avg_chunk_size: u32,

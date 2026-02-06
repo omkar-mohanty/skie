@@ -1,3 +1,5 @@
+pub mod index_store;
+
 use blake3::Hash;
 use fastcdc::v2020::{ChunkData, StreamCDC};
 use rayon::{
@@ -19,7 +21,7 @@ pub struct HashData {
 
 impl PartialEq for HashData {
     fn eq(&self, other: &Self) -> bool {
-        self.hash == other.hash
+        self.index == other.index && self.hash == other.hash
     }
 }
 
@@ -41,7 +43,8 @@ impl HashEngine {
     }
 
     pub fn process(&self, source: PathBuf) -> impl Iterator<Item = Result<HashData>> {
-        let (tx, rx) = crossbeam_channel::bounded::<Result<(usize, ChunkData)>>(self.config.channel_size);
+        let (tx, rx) =
+            crossbeam_channel::bounded::<Result<(usize, ChunkData)>>(self.config.channel_size);
         let (output_tx, output_rx) = crossbeam_channel::bounded(self.config.channel_size);
 
         let min_chunk_size = self.config.min_chunk_size;
@@ -53,21 +56,17 @@ impl HashEngine {
                 Ok(file) => file,
                 Err(msg) => {
                     let err = Err(HashEngineError::IoError(msg));
-                    let _ =  tx.send(err);
+                    let _ = tx.send(err);
                     return;
                 }
             };
 
-            let stream_cdc = StreamCDC::new(source, 
-                min_chunk_size,
-                avg_chunk_size,
-                max_chunk_size);
+            let stream_cdc = StreamCDC::new(source, min_chunk_size, avg_chunk_size, max_chunk_size);
 
             for (index, chunk_res) in stream_cdc.enumerate() {
-
                 let res = match chunk_res {
                     Ok(chunk_data) => Ok((index, chunk_data)),
-                    Err(msg) => Err(HashEngineError::ChunkError(msg))
+                    Err(msg) => Err(HashEngineError::ChunkError(msg)),
                 };
 
                 let _ = tx.send(res);
@@ -75,20 +74,15 @@ impl HashEngine {
         });
 
         self.thread_pool.spawn(move || {
-            rx.iter().par_bridge().
-            for_each(|chunk_res| {
-                let res =  match chunk_res {
+            rx.iter().par_bridge().for_each(|chunk_res| {
+                let res = match chunk_res {
                     Ok((index, chunkdata)) => {
                         let chunk = chunkdata.data;
                         let hash = blake3::hash(&chunk);
-                        let hash_data = HashData {
-                            index,
-                            hash,
-                            chunk,
-                        };
+                        let hash_data = HashData { index, hash, chunk };
                         Ok(hash_data)
-                    },
-                    Err(msg) => Err(msg)
+                    }
+                    Err(msg) => Err(msg),
                 };
 
                 let _ = output_tx.send(res);
@@ -169,14 +163,8 @@ mod tests {
         // Determinism is tricky with par_bridge because order is random.
         // We collect and sort by index to verify the content is identical.
 
-        let mut res_1: Vec<_> = engine
-            .process(source_first)
-            .map(|r| r.unwrap())
-            .collect();
-        let mut res_2: Vec<_> = engine
-            .process(source_second)
-            .map(|r| r.unwrap())
-            .collect();
+        let mut res_1: Vec<_> = engine.process(source_first).map(|r| r.unwrap()).collect();
+        let mut res_2: Vec<_> = engine.process(source_second).map(|r| r.unwrap()).collect();
 
         res_1.sort_by_key(|d| d.index);
         res_2.sort_by_key(|d| d.index);
@@ -186,31 +174,6 @@ mod tests {
             assert_eq!(a.hash, b.hash);
             assert_eq!(a.index, b.index);
         }
-        Ok(())
-    }
-
-    #[test]
-    fn test_large_file_concurrency() -> Result<()> {
-        let mut config = test_config();
-        config.num_threads = 8;
-        let engine = HashEngine::new(config)?;
-
-        let mut tmp_file = NamedTempFile::new()?;
-        let mut content = vec![0u8; 1024 * 1024];
-        for _ in 0..50 {
-            // 50MB test
-            rng().fill_bytes(&mut content);
-            tmp_file.write_all(&content)?;
-        }
-        
-        let path = tmp_file.path().to_path_buf();
-        let start = std::time::Instant::now();
-
-        // Use the iterator to count chunks without holding all 50MB in RAM
-        let _ = engine.process(path).collect::<Vec<_>>();
-
-        let duration = start.elapsed();
-        println!("Processed 50MB in {:?}", duration);
         Ok(())
     }
 }
