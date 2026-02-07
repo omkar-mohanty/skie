@@ -9,8 +9,9 @@ thiserror = { workspace = true }
 rayon = "1"
 fastcdc = "3"
 crossbeam-channel = "0.5"
-blake3 = "1.8"
-uuid = "1.20.0"
+blake3 = { workspace = true } 
+uuid = { workspace = true, features = ["v4"] }
+loro = "1.10.3"
 rusqlite = "0.38.0"
 
 [dev-dependencies]
