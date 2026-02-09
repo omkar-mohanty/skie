@@ -1,4 +1,3 @@
-use crate::Result;
 use fastcdc::v2020::{ChunkData, StreamCDC};
 use rayon::{
     ThreadPool, ThreadPoolBuildError, ThreadPoolBuilder,
@@ -7,6 +6,8 @@ use rayon::{
 use skie_common::{ChunkMetadata, IndexEngineConfig};
 use std::{fs::File, path::PathBuf};
 use thiserror::Error;
+
+type Result<E> = std::result::Result<E, HashEngineError>;
 
 pub struct HashEngine {
     config: IndexEngineConfig,

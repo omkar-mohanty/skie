@@ -1,14 +1,12 @@
 mod hash_engine;
 pub use hash_engine::{HashEngine, HashEngineError};
-use loro::{LoroDoc, LoroMap};
+use loro::{LoroDoc, LoroError, LoroMap};
 use skie_common::{ChunkIndex, ChunkMetadata, FileID, FileMetadata};
+use std::collections::{BTreeMap, HashMap};
 use thiserror::Error;
-use std::{
-    collections::{BTreeMap, HashMap},
-};
 use uuid::Uuid;
 
-pub(crate) type Result<E> = std::result::Result<E, HashEngineError>;
+type Result<E> = std::result::Result<E, SyncError>;
 pub(crate) type DeviceID = Uuid;
 
 pub struct SyncFile {
@@ -28,28 +26,32 @@ impl SyncFile {
         }
     }
 
-    pub fn sync_new_chunks(
-        &mut self,
-        new_tree: BTreeMap<ChunkIndex, ChunkMetadata>,
-    ) -> Result<()>  {
+    pub fn sync_new_chunks(&mut self, new_tree: BTreeMap<ChunkIndex, ChunkMetadata>) -> Result<()> {
         let old_tree = &self.file_metadata.manifest_tree;
 
-
-        let mp =new_tree.iter().filter(|(index, chunk_data)| {
-            match old_tree.get(*index) {
-                Some(old_chunk_metadata) => (*chunk_data).eq(old_chunk_metadata),
-                None => true
+        for index in old_tree.keys() {
+            if !new_tree.contains_key(index) {
+                self.changes.delete(&index.to_string())?;
             }
-        }).map(|(index, chunk_data)| {
-            let bytes = postcard::to_allocvec(chunk_data).map_err(|err| SyncError::Binary(err));
-            (index, bytes)
-        });
-
-        for (index, bytes) in mp {
-            let bytes = bytes?;
         }
 
-        todo!("Handle Chunks which have been added and removed");
+        let new_chunks = new_tree
+            .iter()
+            .filter(|(index, chunk_data)| match old_tree.get(*index) {
+                Some(old_chunk_metadata) => !(*chunk_data).eq(old_chunk_metadata),
+                None => true,
+            })
+            .map(|(index, chunk_data)| {
+                let bytes = postcard::to_allocvec(chunk_data).map_err(SyncError::Binary);
+                (index, bytes)
+            });
+
+        for (index, bytes) in new_chunks {
+            let bytes = bytes?;
+            self.changes.insert(&index.to_string(), bytes)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -59,13 +61,15 @@ pub struct SyncEngine {
 }
 
 impl SyncEngine {
-    pub fn new() {
-        let loro_doc = LoroDoc::new();
-    }
+    pub fn new() {}
 }
 
 #[derive(Debug, Error)]
 pub enum SyncError {
+    #[error("Consistency Error")]
+    ConsistencyError(#[from] LoroError),
+    #[error("Hash Engine")]
+    HashEngineError(#[from] HashEngineError),
     #[error("Sync Engine")]
-    Binary(#[from] postcard::Error)
+    Binary(#[from] postcard::Error),
 }
