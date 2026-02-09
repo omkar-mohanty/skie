@@ -1,12 +1,10 @@
 mod hash_engine;
-use fastcdc::ronomon::Chunk;
 pub use hash_engine::{HashEngine, HashEngineError};
-use loro::{LoroDoc, LoroList};
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use loro::{LoroDoc, LoroMap};
 use skie_common::{ChunkIndex, ChunkMetadata, FileID, FileMetadata};
+use thiserror::Error;
 use std::{
     collections::{BTreeMap, HashMap},
-    path::PathBuf,
 };
 use uuid::Uuid;
 
@@ -16,13 +14,13 @@ pub(crate) type DeviceID = Uuid;
 pub struct SyncFile {
     pub file_metadata: FileMetadata,
     pub doc: LoroDoc,
-    pub changes: LoroList,
+    pub changes: LoroMap,
 }
 
 impl SyncFile {
     pub fn new(id: DeviceID, file_metadata: FileMetadata) -> Self {
         let doc = LoroDoc::new();
-        let changes = doc.get_list(id.to_string());
+        let changes = doc.get_map(id.to_string());
         Self {
             file_metadata,
             doc,
@@ -31,15 +29,27 @@ impl SyncFile {
     }
 
     pub fn sync_new_chunks(
-        mut self,
+        &mut self,
         new_tree: BTreeMap<ChunkIndex, ChunkMetadata>,
-    ) -> BTreeMap<ChunkIndex, ChunkMetadata> {
-        let mut old_tree = self.file_metadata.manifest_tree;
-        let removed_enries = old_tree
-            .extract_if(.., |key, _| new_tree.contains_key(key))
-            .collect::<BTreeMap<ChunkIndex, ChunkMetadata>>();
-        self.file_metadata.manifest_tree = new_tree;
-        removed_enries
+    ) -> Result<()>  {
+        let old_tree = &self.file_metadata.manifest_tree;
+
+
+        let mp =new_tree.iter().filter(|(index, chunk_data)| {
+            match old_tree.get(*index) {
+                Some(old_chunk_metadata) => (*chunk_data).eq(old_chunk_metadata),
+                None => true
+            }
+        }).map(|(index, chunk_data)| {
+            let bytes = postcard::to_allocvec(chunk_data).map_err(|err| SyncError::Binary(err));
+            (index, bytes)
+        });
+
+        for (index, bytes) in mp {
+            let bytes = bytes?;
+        }
+
+        todo!("Handle Chunks which have been added and removed");
     }
 }
 
@@ -54,16 +64,8 @@ impl SyncEngine {
     }
 }
 
-pub fn calculate_diff(engine: &HashEngine, source: PathBuf, metadata: &FileMetadata) {
-    let manifest_map = &metadata.manifest_tree;
-    let iter = engine
-        .process(source)
-        .par_bridge()
-        .filter(|hash_res| match hash_res {
-            Ok(hash_data) => match manifest_map.get(&hash_data.index) {
-                Some(chunk_metadata) => *chunk_metadata == *hash_data,
-                None => true,
-            },
-            Err(_) => true,
-        });
+#[derive(Debug, Error)]
+pub enum SyncError {
+    #[error("Sync Engine")]
+    Binary(#[from] postcard::Error)
 }

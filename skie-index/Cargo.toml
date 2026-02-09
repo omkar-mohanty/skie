@@ -13,6 +13,7 @@ blake3 = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 loro = "1.10.3"
 rusqlite = "0.38.0"
+postcard = "1.0.0"
 
 [dev-dependencies]
 rand = "0.9"

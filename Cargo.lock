@@ -1920,6 +1920,7 @@ dependencies = [
  "crossbeam-channel",
  "fastcdc",
  "loro",
+ "postcard",
  "rand 0.9.2",
  "rayon",
  "rusqlite",
