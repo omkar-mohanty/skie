@@ -74,22 +74,21 @@ pub fn get_chunk_hashes(
         });
     });
 
-    thread_pool.install(move || {
-        let err = output_rx.iter().any(|res| res.is_err());
-        if err {
-            let errs = output_rx
-                .iter()
-                .filter(|res| res.is_err())
-                .collect::<Vec<_>>();
-            return Err(HashEngineError::HashError(errs));
-        }
+    // 1. Collect everything from the channel into a Result Vec
+    // This drains the channel completely in one pass.
+    let results: Vec<Result<(usize, ChunkMetadata)>> = output_rx.iter().collect();
 
-        Ok(output_rx
-            .iter()
-            .par_bridge()
-            .map(|res| res.unwrap())
-            .collect::<BTreeMap<ChunkIndex, ChunkMetadata>>())
-    })
+    // 2. Check if any item in our Vec is an error
+    if results.iter().any(|res| res.is_err()) {
+        let errs = results.into_iter().filter(|res| res.is_err()).collect();
+        return Err(HashEngineError::HashError(errs));
+    }
+
+    // 3. If all good, transform the Vec into the BTreeMap
+    Ok(results
+        .into_iter()
+        .map(|res| res.unwrap())
+        .collect::<BTreeMap<ChunkIndex, ChunkMetadata>>())
 }
 
 pub struct HashEngine {
@@ -199,14 +198,18 @@ mod tests {
         }
     }
 
+    fn test_resource() -> Result<ComputeResource> {
+        Ok(ComputeResource {
+            thread_pool: rayon::ThreadPoolBuilder::new().build()?,
+            hasher: blake3::Hasher::new(),
+        })
+    }
+
     #[test]
     fn test_empty_file() -> Result<()> {
         let config = test_config();
         let file = NamedTempFile::new()?;
-        let resources = ComputeResource {
-            thread_pool: rayon::ThreadPoolBuilder::new().build()?,
-            hasher: blake3::Hasher::new(),
-        };
+        let resources = test_resource()?;
         let res = get_chunk_hashes(file.path().to_path_buf(), Some(config), &resources)?;
         assert!(res.is_empty());
         Ok(())
@@ -214,17 +217,19 @@ mod tests {
 
     #[test]
     fn test_small_file_single_chunk() -> Result<()> {
-        let engine = HashEngine::new(test_config())?;
+        let config = test_config();
+        let resource = test_resource()?;
         let data = vec![0u8; 1024];
         let mut file = NamedTempFile::new()?;
         let _ = file.write_all(&data);
-        let source = file.path().to_path_buf();
-        // Iterators let us just take the first item
-        let mut it = engine.process(source);
-        let first = it.next().expect("Should have one chunk")?;
+        file.flush()?;
+        let path = file.path().to_path_buf();
+        let tree = get_chunk_hashes(path, Some(config), &resource)?;
 
-        assert_eq!(first.hash, blake3::hash(&data));
-        assert_eq!(first.index, 0);
+        assert_eq!(tree.len(), 1);
+        let (index, chunk_metadata) = tree.first_key_value().unwrap();
+        assert_eq!(chunk_metadata.hash, blake3::hash(&data));
+        assert_eq!(*index, 0);
         Ok(())
     }
 

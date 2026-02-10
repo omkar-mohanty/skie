@@ -25,6 +25,7 @@ impl PartialEq for ChunkMetadata {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileMetadata {
+    pub file_hash: Hash,
     pub file_id: Uuid,
     pub path: PathBuf,
     pub manifest_tree: BTreeMap<ChunkIndex, ChunkMetadata>,
