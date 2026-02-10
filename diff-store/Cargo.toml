@@ -1,0 +1,15 @@
+[package]
+name = "diff-store"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+blake3 = { workspace = true }
+thiserror = { workspace = true }
+skie-common = { workspace = true }
+
+[features]
+default = ["s3-storage"]
+s3-storage = []
+local-storage = []
+memory-storage = []
