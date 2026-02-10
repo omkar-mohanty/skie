@@ -2,7 +2,7 @@
 members = [
     "skie-service",
     "skie-cli",
-    "skie-index", "skie-common",
+    "skie-index", "skie-common", "diff-store",
 ]
 resolver = "2"
 

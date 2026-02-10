@@ -9,7 +9,7 @@ thiserror = { workspace = true }
 rayon = "1"
 fastcdc = "3"
 crossbeam-channel = "0.5"
-blake3 = { workspace = true } 
+blake3 = { workspace = true , features = ["rayon", "mmap"]} 
 uuid = { workspace = true, features = ["v4"] }
 loro = "1.10.3"
 rusqlite = "0.38.0"

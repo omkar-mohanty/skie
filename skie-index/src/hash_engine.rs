@@ -3,11 +3,94 @@ use rayon::{
     ThreadPool, ThreadPoolBuildError, ThreadPoolBuilder,
     iter::{ParallelBridge, ParallelIterator},
 };
-use skie_common::{ChunkMetadata, IndexEngineConfig};
-use std::{fs::File, path::PathBuf};
+use skie_common::{ChunkIndex, ChunkMetadata, IndexEngineConfig};
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
 
+use crate::ComputeResource;
+
 type Result<E> = std::result::Result<E, HashEngineError>;
+
+pub fn get_chunk_hashes(
+    path: PathBuf,
+    config: Option<IndexEngineConfig>,
+    resources: &ComputeResource,
+) -> Result<BTreeMap<ChunkIndex, ChunkMetadata>> {
+    let config = config.unwrap_or_default();
+    let thread_pool = &resources.thread_pool;
+    let (tx, rx) = crossbeam_channel::bounded::<Result<(usize, ChunkData)>>(config.channel_size);
+    let (output_tx, output_rx) = crossbeam_channel::bounded(config.channel_size);
+
+    let min_chunk_size = config.min_chunk_size;
+    let avg_chunk_size = config.avg_chunk_size;
+    let max_chunk_size = config.max_chunk_size;
+
+    thread_pool.spawn(move || {
+        let source = match File::open(path) {
+            Ok(file) => file,
+            Err(msg) => {
+                let err = Err(HashEngineError::IoError(msg));
+                let _ = tx.send(err);
+                return;
+            }
+        };
+
+        let stream_cdc = StreamCDC::new(source, min_chunk_size, avg_chunk_size, max_chunk_size);
+
+        for (index, chunk_res) in stream_cdc.enumerate() {
+            let res = match chunk_res {
+                Ok(chunk_data) => Ok((index, chunk_data)),
+                Err(msg) => Err(HashEngineError::ChunkError(msg)),
+            };
+
+            let _ = tx.send(res);
+        }
+    });
+
+    thread_pool.spawn(move || {
+        rx.iter().par_bridge().for_each(|chunk_res| {
+            let res = match chunk_res {
+                Ok((index, chunkdata)) => {
+                    let chunk = chunkdata.data;
+                    let hash = blake3::hash(&chunk);
+                    let offset = chunkdata.offset;
+                    let length = chunkdata.length;
+                    let hash_data = ChunkMetadata {
+                        index,
+                        hash,
+                        offset,
+                        length,
+                    };
+                    Ok((index, hash_data))
+                }
+                Err(msg) => Err(msg),
+            };
+
+            let _ = output_tx.send(res);
+        });
+    });
+
+    thread_pool.install(move || {
+        let err = output_rx.iter().any(|res| res.is_err());
+        if err {
+            let errs = output_rx
+                .iter()
+                .filter(|res| res.is_err())
+                .collect::<Vec<_>>();
+            return Err(HashEngineError::HashError(errs));
+        }
+
+        Ok(output_rx
+            .iter()
+            .par_bridge()
+            .map(|res| res.unwrap())
+            .collect::<BTreeMap<ChunkIndex, ChunkMetadata>>())
+    })
+}
 
 pub struct HashEngine {
     config: IndexEngineConfig,
@@ -94,6 +177,8 @@ pub enum HashEngineError {
     ChunkError(#[from] fastcdc::v2020::Error),
     #[error("Hash Engine: ThreadPool error")]
     ThreadPoolError(#[from] ThreadPoolBuildError),
+    #[error("Hash Engine: Error while hashing")]
+    HashError(Vec<Result<(usize, ChunkMetadata)>>),
 }
 
 #[cfg(test)]
@@ -116,11 +201,14 @@ mod tests {
 
     #[test]
     fn test_empty_file() -> Result<()> {
-        let engine = HashEngine::new(test_config())?;
+        let config = test_config();
         let file = NamedTempFile::new()?;
-        let source = file.path().to_path_buf();
-        let results: Vec<_> = engine.process(source).collect();
-        assert!(results.is_empty(), "Empty file should produce zero chunks");
+        let resources = ComputeResource {
+            thread_pool: rayon::ThreadPoolBuilder::new().build()?,
+            hasher: blake3::Hasher::new(),
+        };
+        let res = get_chunk_hashes(file.path().to_path_buf(), Some(config), &resources)?;
+        assert!(res.is_empty());
         Ok(())
     }
 
