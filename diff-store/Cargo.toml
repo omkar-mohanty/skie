@@ -7,9 +7,10 @@ edition = "2024"
 blake3 = { workspace = true }
 thiserror = { workspace = true }
 skie-common = { workspace = true }
+rusqlite = "0.38.0"
 
 [features]
-default = ["s3-storage"]
-s3-storage = []
-local-storage = []
+default = ["s3-chunk-storage"]
+s3-chunk-storage = []
+local-chunk-storage = []
 memory-storage = []

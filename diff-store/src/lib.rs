@@ -1,11 +1,26 @@
-mod chunk_store;
-mod files_store;
+use rusqlite::Connection;
+use skie_common::FileTable;
+use thiserror::Error;
 
-pub(crate) type Result<E> = std::result::Result<E, Box<dyn std::error::Error>>;
-pub trait Store {
-    type Key;
-    type Value;
+pub(crate) type Result<E> = std::result::Result<E, StoreError>;
 
-    fn insert(key: Self::Key, value: Self::Value) -> Result<()>;
-    fn get(key: Self::Key) -> Option<Self::Value>;
+pub struct FileStore {
+    connection: Connection
+}
+
+impl FileStore {
+    pub fn new() -> Result<Self> {
+        let connection = Connection::open_in_memory()?;
+        Ok(Self { connection })
+    }
+
+    pub fn flush(&self, files_table: FileTable) {
+
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum StoreError {
+    #[error("Database Error")]
+    DbError(#[from] rusqlite::Error)
 }

@@ -1,37 +1,25 @@
 mod hash_engine;
-use std::collections::{BTreeMap, HashSet};
-
 use blake3::Hash;
 pub use hash_engine::{HashEngine, HashEngineError};
 use loro::{LoroDoc, LoroError};
-use skie_common::{ChunkIndex, ChunkMetadata, FileID, FileMetadata, IndexEngineConfig};
+use skie_common::{ChunkID, ChunkIndex, ChunkMetadata, FileID, FileMetadata, IndexEngineConfig, FileTable, ChunkTable};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    ops::Deref,
+    path::PathBuf,
+};
 use thiserror::Error;
 use uuid::Uuid;
 
-type HashIndex = usize;
-
-struct FileEntry {
-    hash_indices: HashSet<HashIndex>,
-    file_hash_index: HashIndex,
-}
-
-struct World {
-    chunk_hashes: Vec<Hash>,
-    file_hashes: Vec<Hash>,
-    files: BTreeMap<FileID, FileEntry>,
-}
 
 pub struct ComputeResource {
     pub thread_pool: rayon::ThreadPool,
     pub hasher: blake3::Hasher,
 }
 
-type Result<E> = std::result::Result<E, SyncError>;
-pub(crate) type DeviceID = Uuid;
-
-pub struct SyncFile {
-    pub file_metadata: FileMetadata,
-    pub doc: LoroDoc,
+pub struct World {
+    pub files: FileTable,
+    pub chunks: ChunkTable,
 }
 
 #[derive(Debug, Error)]
