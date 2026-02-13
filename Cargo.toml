@@ -12,4 +12,4 @@ serde = { version = "1.0", features = ["derive"] }
 thiserror = "2"
 blake3 =  { version = "1.8.3", features = ["serde"] }
 uuid = { version = "1.20.0", features = ["serde"] }
-sqlx = { version = "0.8.6", features = ["sqlite", "migrate"]}
+sqlx = { version = "0.8.6", features = ["sqlite", "migrate", "any"]}
