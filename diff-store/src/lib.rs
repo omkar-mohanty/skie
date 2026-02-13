@@ -1,26 +1,21 @@
-use rusqlite::Connection;
 use skie_common::FileTable;
+use sqlx::{AnyConnection, Connection, SqliteConnection};
 use thiserror::Error;
 
-pub(crate) type Result<E> = std::result::Result<E, StoreError>;
+type Result<E> = std::result::Result<E, Box<dyn std::error::Error>>;
 
 pub struct FileStore {
-    connection: Connection
+    connection: AnyConnection,
 }
-
 impl FileStore {
-    pub fn new() -> Result<Self> {
-        let connection = Connection::open_in_memory()?;
-        Ok(Self { connection })
-    }
-
-    pub fn flush(&self, files_table: FileTable) {
-
+    pub async fn new() -> Result<Self> {
+        let i = 0;
+       todo!() 
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum StoreError {
-    #[error("Database Error")]
-    DbError(#[from] rusqlite::Error)
+   #[error("Error while creating a database connection")]
+   ConnectionError(#[from] sqlx::Error),
 }

@@ -1,8 +1,10 @@
 mod hash_engine;
 use blake3::Hash;
 pub use hash_engine::{HashEngine, HashEngineError};
-use loro::{LoroDoc, LoroError};
-use skie_common::{ChunkID, ChunkIndex, ChunkMetadata, FileID, FileMetadata, IndexEngineConfig, FileTable, ChunkTable};
+use skie_common::{
+    ChunkID, ChunkIndex, ChunkMetadata, ChunkTable, FileID, FileMetadata, FileTable,
+    IndexEngineConfig,
+};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     ops::Deref,
@@ -10,7 +12,6 @@ use std::{
 };
 use thiserror::Error;
 use uuid::Uuid;
-
 
 pub struct ComputeResource {
     pub thread_pool: rayon::ThreadPool,
@@ -26,10 +27,6 @@ pub struct World {
 pub enum SyncError {
     #[error("Error while building Sync Engine")]
     BuildError(String),
-    #[error("Consistency Error")]
-    ConsistencyError(#[from] LoroError),
     #[error("Hash Engine")]
     HashEngineError(#[from] HashEngineError),
-    #[error("Sync Engine")]
-    Binary(#[from] postcard::Error),
 }

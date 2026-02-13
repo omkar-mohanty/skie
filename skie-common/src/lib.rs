@@ -1,5 +1,9 @@
 mod config;
-use std::{collections::{BTreeMap, HashMap}, path::PathBuf, ops::Deref};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Deref,
+    path::PathBuf,
+};
 
 use blake3::Hash;
 pub use config::*;
