@@ -83,7 +83,7 @@ impl Default for PrivacyConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IndexEngineConfig {
+pub struct HashConfig {
     pub min_chunk_size: u32,
     pub avg_chunk_size: u32,
     pub max_chunk_size: u32,
@@ -92,11 +92,11 @@ pub struct IndexEngineConfig {
     pub engine_config: PathBuf,
 }
 
-impl Default for IndexEngineConfig {
+impl Default for HashConfig {
     fn default() -> Self {
         let project_dirs = ProjectDirs::from(QUALIFIER, ORGANIZATION, APPLICATION).unwrap();
         let engine_config = project_dirs.data_dir().to_path_buf();
-        IndexEngineConfig {
+        HashConfig {
             min_chunk_size: CHUNK_MIN_SIZE,
             avg_chunk_size: CHUNK_AVG_SIZE,
             max_chunk_size: CHUNK_MAX_SIZE,
@@ -110,7 +110,7 @@ impl Default for IndexEngineConfig {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
     pub sync_dir: PathBuf,
-    pub engine_config: IndexEngineConfig,
+    pub engine_config: HashConfig,
     pub network_config: NetworkConfig,
     pub privacy_config: PrivacyConfig,
     pub debounce_ms: u64,
@@ -121,7 +121,7 @@ impl Default for AppConfig {
         let sync_dir = get_default_sync_path();
         AppConfig {
             sync_dir,
-            engine_config: IndexEngineConfig::default(),
+            engine_config: HashConfig::default(),
             network_config: NetworkConfig::default(),
             privacy_config: PrivacyConfig::default(),
             debounce_ms: DEBOUNCE_TIME_IN_MS,

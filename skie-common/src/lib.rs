@@ -1,12 +1,8 @@
 mod config;
-use std::{
-    collections::{BTreeMap, HashMap},
-    ops::Deref,
-    path::PathBuf,
-};
+pub use config::*;
+use std::{collections::HashMap, ops::Deref, path::PathBuf};
 
 use blake3::Hash;
-pub use config::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -30,25 +26,18 @@ impl FileID {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ChunkMetadata {
-    pub index: ChunkIndex,
+pub struct ChunkTableEntry {
     pub hash: Hash,
+    pub index: ChunkIndex,
+    pub file_id: String,
+    pub size: u64,
     pub offset: u64,
-    pub length: usize,
 }
 
-impl PartialEq for ChunkMetadata {
+impl PartialEq for ChunkTableEntry {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct FileMetadata {
-    pub file_hash: Hash,
-    pub file_id: Uuid,
-    pub path: PathBuf,
-    pub manifest_tree: BTreeMap<ChunkIndex, ChunkMetadata>,
 }
 
 pub struct FileTable {

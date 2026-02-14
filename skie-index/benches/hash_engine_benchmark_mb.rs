@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::{RngCore, rng};
-use skie_common::IndexEngineConfig;
+use skie_common::HashConfig;
 use skie_index::{ComputeResource, get_chunk_hashes};
 use std::hint::black_box;
 use std::io::Write;
@@ -9,7 +9,7 @@ use tempfile::NamedTempFile;
 const MB: usize = 1024 * 1024;
 
 fn hash_engine_benchmark_mb(c: &mut Criterion) {
-    let config = IndexEngineConfig::default();
+    let config = HashConfig::default();
 
     // Setup resources once outside the benchmark loop
     let resources = ComputeResource {
@@ -31,16 +31,13 @@ fn hash_engine_benchmark_mb(c: &mut Criterion) {
     }
     file.sync_all().unwrap(); // Ensure it's actually on disk/cache
 
-    let source = named_temp_file.path().to_path_buf();
+    let source = named_temp_file.path();
 
     c.bench_function("get_chunk_hashes 50MB", |b| {
-        b.iter(move || {
+        b.iter(|| {
             // We clone the path because the function takes ownership
-            let res = get_chunk_hashes(
-                black_box(source.clone()),
-                black_box(Some(config)),
-                black_box(&resources),
-            );
+            let res =
+                get_chunk_hashes(black_box(source), black_box(&resources), black_box(&config));
 
             // Black_box the result to prevent the compiler from
             // optimizing away the entire computation.

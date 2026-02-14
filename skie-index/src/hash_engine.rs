@@ -1,22 +1,37 @@
+use blake3::Hash;
 use fastcdc::v2020::{ChunkData, StreamCDC};
 use rayon::{
     ThreadPoolBuildError,
     iter::{ParallelBridge, ParallelIterator},
 };
-use skie_common::{ChunkIndex, ChunkMetadata, IndexEngineConfig};
-use std::{collections::BTreeMap, fs::File, path::PathBuf};
+use skie_common::{ChunkIndex, HashConfig};
+use std::{fs::File, path::Path};
 use thiserror::Error;
 
 use crate::ComputeResource;
 
 type Result<E> = std::result::Result<E, HashEngineError>;
 
+#[derive(Debug)]
+pub struct ChunkResult {
+    pub hash: Hash,
+    pub index: ChunkIndex,
+    pub size: u64,
+    pub offset: u64,
+}
+
+impl PartialEq for ChunkResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
 pub fn get_chunk_hashes(
-    path: PathBuf,
-    config: Option<IndexEngineConfig>,
+    path: &Path,
     resources: &ComputeResource,
-) -> Result<BTreeMap<ChunkIndex, ChunkMetadata>> {
-    let config = config.unwrap_or_default();
+    config: &HashConfig,
+) -> Result<Vec<ChunkResult>> {
+    let path = path.to_path_buf();
     let thread_pool = &resources.thread_pool;
     let (tx, rx) = crossbeam_channel::bounded::<Result<(usize, ChunkData)>>(config.channel_size);
     let (output_tx, output_rx) = crossbeam_channel::bounded(config.channel_size);
@@ -54,14 +69,14 @@ pub fn get_chunk_hashes(
                     let chunk = chunkdata.data;
                     let hash = blake3::hash(&chunk);
                     let offset = chunkdata.offset;
-                    let length = chunkdata.length;
-                    let hash_data = ChunkMetadata {
+                    let size = chunkdata.length as u64;
+                    let hash_data = ChunkResult {
                         index,
                         hash,
                         offset,
-                        length,
+                        size,
                     };
-                    Ok((index, hash_data))
+                    Ok(hash_data)
                 }
                 Err(msg) => Err(msg),
             };
@@ -72,11 +87,14 @@ pub fn get_chunk_hashes(
 
     // 1. Collect everything from the channel into a Result Vec
     // This drains the channel completely in one pass.
-    let results: Vec<Result<(usize, ChunkMetadata)>> = output_rx.iter().collect();
+    let results: Vec<Result<ChunkResult>> = output_rx.iter().collect();
 
     // 2. Check if any item in our Vec is an error
     if results.iter().any(|res| res.is_err()) {
-        let errs = results.into_iter().filter(|res| res.is_err()).collect();
+        let errs = results
+            .into_iter()
+            .filter(|res| res.is_err())
+            .collect::<Vec<_>>();
         return Err(HashEngineError::HashError(errs));
     }
 
@@ -84,7 +102,7 @@ pub fn get_chunk_hashes(
     Ok(results
         .into_iter()
         .map(|res| res.unwrap())
-        .collect::<BTreeMap<ChunkIndex, ChunkMetadata>>())
+        .collect::<Vec<_>>())
 }
 
 #[derive(Debug, Error)]
@@ -98,7 +116,7 @@ pub enum HashEngineError {
     #[error("Hash Engine: ThreadPool error")]
     ThreadPoolError(#[from] ThreadPoolBuildError),
     #[error("Hash Engine: Error while hashing")]
-    HashError(Vec<Result<(usize, ChunkMetadata)>>),
+    HashError(Vec<Result<ChunkResult>>),
 }
 
 #[cfg(test)]
@@ -108,8 +126,8 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    fn test_config() -> IndexEngineConfig {
-        IndexEngineConfig {
+    fn test_config() -> HashConfig {
+        HashConfig {
             num_threads: 4,
             min_chunk_size: 1024 * 16,
             avg_chunk_size: 1024 * 32,
@@ -131,7 +149,7 @@ mod tests {
         let config = test_config();
         let file = NamedTempFile::new()?;
         let resources = test_resource()?;
-        let res = get_chunk_hashes(file.path().to_path_buf(), Some(config), &resources)?;
+        let res = get_chunk_hashes(file.path(), &resources, &config)?;
         assert!(res.is_empty());
         Ok(())
     }
@@ -144,13 +162,12 @@ mod tests {
         let mut file = NamedTempFile::new()?;
         let _ = file.write_all(&data);
         file.flush()?;
-        let path = file.path().to_path_buf();
-        let tree = get_chunk_hashes(path, Some(config), &resource)?;
+        let path = file.path();
+        let hashes = get_chunk_hashes(path, &resource, &config)?;
 
-        assert_eq!(tree.len(), 1);
-        let (index, chunk_metadata) = tree.first_key_value().unwrap();
+        assert_eq!(hashes.len(), 1);
+        let chunk_metadata = hashes.first().unwrap();
         assert_eq!(chunk_metadata.hash, blake3::hash(&data));
-        assert_eq!(*index, 0);
         Ok(())
     }
 
@@ -168,12 +185,11 @@ mod tests {
         file.write_all(&data)?;
         file.flush()?;
 
-        let path = file.path().to_path_buf();
-
+        let path = file.path();
         // 3. Run the functional engine twice on the same file
         // We clone the path because get_chunk_hashes takes ownership of the PathBuf
-        let res_1 = get_chunk_hashes(path.clone(), Some(config.clone()), &resource)?;
-        let res_2 = get_chunk_hashes(path, Some(config), &resource)?;
+        let res_1 = get_chunk_hashes(path, &resource, &config)?;
+        let res_2 = get_chunk_hashes(path, &resource, &config)?;
 
         // 4. Compare the BTreeMaps
         // BTreeMap implements PartialEq, comparing both keys and values in order.
