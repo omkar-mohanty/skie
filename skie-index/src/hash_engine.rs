@@ -1,14 +1,10 @@
 use fastcdc::v2020::{ChunkData, StreamCDC};
 use rayon::{
-    ThreadPool, ThreadPoolBuildError, ThreadPoolBuilder,
+    ThreadPoolBuildError,
     iter::{ParallelBridge, ParallelIterator},
 };
 use skie_common::{ChunkIndex, ChunkMetadata, IndexEngineConfig};
-use std::{
-    collections::BTreeMap,
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeMap, fs::File, path::PathBuf};
 use thiserror::Error;
 
 use crate::ComputeResource;
@@ -91,81 +87,6 @@ pub fn get_chunk_hashes(
         .collect::<BTreeMap<ChunkIndex, ChunkMetadata>>())
 }
 
-pub struct HashEngine {
-    config: IndexEngineConfig,
-    thread_pool: ThreadPool,
-}
-
-impl HashEngine {
-    pub fn new(config: IndexEngineConfig) -> Result<Self> {
-        let thread_pool = ThreadPoolBuilder::new()
-            .num_threads(config.num_threads)
-            .thread_name(|i| format!("skie-index-{}", i))
-            .build()?;
-        Ok(Self {
-            config,
-            thread_pool,
-        })
-    }
-
-    pub fn process(&self, source: PathBuf) -> impl Iterator<Item = Result<ChunkMetadata>> {
-        let (tx, rx) =
-            crossbeam_channel::bounded::<Result<(usize, ChunkData)>>(self.config.channel_size);
-        let (output_tx, output_rx) = crossbeam_channel::bounded(self.config.channel_size);
-
-        let min_chunk_size = self.config.min_chunk_size;
-        let avg_chunk_size = self.config.avg_chunk_size;
-        let max_chunk_size = self.config.max_chunk_size;
-
-        self.thread_pool.spawn(move || {
-            let source = match File::open(source) {
-                Ok(file) => file,
-                Err(msg) => {
-                    let err = Err(HashEngineError::IoError(msg));
-                    let _ = tx.send(err);
-                    return;
-                }
-            };
-
-            let stream_cdc = StreamCDC::new(source, min_chunk_size, avg_chunk_size, max_chunk_size);
-
-            for (index, chunk_res) in stream_cdc.enumerate() {
-                let res = match chunk_res {
-                    Ok(chunk_data) => Ok((index, chunk_data)),
-                    Err(msg) => Err(HashEngineError::ChunkError(msg)),
-                };
-
-                let _ = tx.send(res);
-            }
-        });
-
-        self.thread_pool.spawn(move || {
-            rx.iter().par_bridge().for_each(|chunk_res| {
-                let res = match chunk_res {
-                    Ok((index, chunkdata)) => {
-                        let chunk = chunkdata.data;
-                        let hash = blake3::hash(&chunk);
-                        let offset = chunkdata.offset;
-                        let length = chunkdata.length;
-                        let hash_data = ChunkMetadata {
-                            index,
-                            hash,
-                            offset,
-                            length,
-                        };
-                        Ok(hash_data)
-                    }
-                    Err(msg) => Err(msg),
-                };
-
-                let _ = output_tx.send(res);
-            });
-        });
-
-        output_rx.into_iter()
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum HashEngineError {
     #[error("Hash Engine: Io Error")]
@@ -235,29 +156,29 @@ mod tests {
 
     #[test]
     fn test_determinism() -> Result<()> {
-        let engine = HashEngine::new(test_config())?;
+        let config = test_config();
+        let resource = test_resource()?;
+
+        // 1. Create random data
         let mut data = vec![0u8; 1024 * 100];
         rng().fill_bytes(&mut data);
+
+        // 2. Write to a temp file
         let mut file = NamedTempFile::new()?;
-        let _ = file.write_all(&data)?;
+        file.write_all(&data)?;
+        file.flush()?;
 
-        let source_first = file.path().to_path_buf();
-        let source_second = file.path().to_path_buf();
+        let path = file.path().to_path_buf();
 
-        // Determinism is tricky with par_bridge because order is random.
-        // We collect and sort by index to verify the content is identical.
+        // 3. Run the functional engine twice on the same file
+        // We clone the path because get_chunk_hashes takes ownership of the PathBuf
+        let res_1 = get_chunk_hashes(path.clone(), Some(config.clone()), &resource)?;
+        let res_2 = get_chunk_hashes(path, Some(config), &resource)?;
 
-        let mut res_1: Vec<_> = engine.process(source_first).map(|r| r.unwrap()).collect();
-        let mut res_2: Vec<_> = engine.process(source_second).map(|r| r.unwrap()).collect();
-
-        res_1.sort_by_key(|d| d.index);
-        res_2.sort_by_key(|d| d.index);
-
-        assert_eq!(res_1.len(), res_2.len());
-        for (a, b) in res_1.iter().zip(res_2.iter()) {
-            assert_eq!(a.hash, b.hash);
-            assert_eq!(a.index, b.index);
-        }
+        // 4. Compare the BTreeMaps
+        // BTreeMap implements PartialEq, comparing both keys and values in order.
+        assert_eq!(res_1.len(), res_2.len(), "Chunk counts differ between runs");
+        assert_eq!(res_1, res_2, "Hashes or indices are not deterministic");
         Ok(())
     }
 }

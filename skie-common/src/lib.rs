@@ -14,15 +14,6 @@ pub type ChunkIndex = usize;
 pub type FileTableIndex = usize;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct ChunkID(Uuid);
-
-impl ChunkID {
-    pub fn new() -> Self {
-        ChunkID(Uuid::new_v4())
-    }
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileID(Uuid);
 
 impl Deref for FileID {
@@ -68,9 +59,10 @@ pub struct FileTable {
 }
 
 pub struct ChunkTable {
-    pub ids: Vec<ChunkID>,
-    pub file_ids: Vec<FileID>,
     pub hashes: Vec<Hash>,
+    pub file_ids: Vec<FileID>,
+    pub sizes: Vec<u64>,
+    pub offsets: Vec<u64>,
 }
 
 pub struct FileIndex(HashMap<FileID, FileTableIndex>);

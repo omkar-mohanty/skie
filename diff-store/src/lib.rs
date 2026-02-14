@@ -1,18 +1,25 @@
-use skie_common::FileTable;
-use sqlx::{AnyConnection, Connection, Executor};
+use skie_common::{FileID, FileTable};
+use sqlx::{AnyConnection, Connection, migrate::MigrateError};
 use thiserror::Error;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+type Result<T> = std::result::Result<T, FileStoreError>;
 
-// The "Lazy" Senior Query: One string to rule them all.
 const UPSERT_QUERY: &str = r#"
-    INSERT INTO files (file_id, name, path, hash)
+    INSERT INTO files (file_iu, name, path, hash)
     VALUES ($1, $2, $3, $4)
     ON CONFLICT(file_id) DO UPDATE SET
         name = excluded.name,
         path = excluded.path,
         hash = excluded.hash
 "#;
+
+#[derive(sqlx::FromRow)]
+pub struct FileTableEntry {
+    pub file_id: String,
+    pub name: String,
+    pub path: String,
+    pub hash: Vec<u8>,
+}
 
 pub struct FileStore {
     connection: AnyConnection,
@@ -30,7 +37,7 @@ impl FileStore {
     }
 
     /// DOD Upsert: Processes the entire table in one atomic transaction.
-    pub async fn upsert_table(&mut self, table: FileTable) -> Result<()> {
+    pub async fn upsert_table(&mut self, table: &FileTable) -> Result<()> {
         // Start a transaction. If any insert fails, the whole thing rolls back.
         let mut transaction = self.connection.begin().await?;
 
@@ -50,6 +57,31 @@ impl FileStore {
         Ok(())
     }
 
+    pub async fn fetch_file_by_ids(&mut self, file_ids: &[FileID]) -> Result<Vec<FileTableEntry>> {
+        if file_ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // 1. Create the string: "SELECT * FROM files WHERE file_id IN ($1, $2, $3)"
+        let placeholders = (1..=file_ids.len())
+            .map(|i| format!("${}", i))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        let sql = format!("SELECT * FROM files WHERE file_id IN ({})", placeholders);
+
+        // 2. Bind and execute
+        let mut query = sqlx::query_as::<_, FileTableEntry>(&sql);
+        for id in file_ids {
+            let id = (*id).to_string();
+            query = query.bind(id);
+        }
+
+        let entries = query.fetch_all(&mut self.connection).await?;
+
+        Ok(entries)
+    }
+
     /// Helper to see if we are a "Fresh Install"
     pub async fn is_empty(&mut self) -> Result<bool> {
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM files")
@@ -57,4 +89,12 @@ impl FileStore {
             .await?;
         Ok(count.0 == 0)
     }
+}
+
+#[derive(Error, Debug)]
+pub enum FileStoreError {
+    #[error("Connection Error")]
+    DbConnectionError(#[from] sqlx::Error),
+    #[error("Migration Error")]
+    MigrationError(#[from] MigrateError),
 }

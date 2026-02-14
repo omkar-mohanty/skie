@@ -1,17 +1,7 @@
 mod hash_engine;
-use blake3::Hash;
-pub use hash_engine::{HashEngine, HashEngineError};
-use skie_common::{
-    ChunkID, ChunkIndex, ChunkMetadata, ChunkTable, FileID, FileMetadata, FileTable,
-    IndexEngineConfig,
-};
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    ops::Deref,
-    path::PathBuf,
-};
+pub use hash_engine::{HashEngineError, get_chunk_hashes};
+use skie_common::{ChunkTable, FileTable};
 use thiserror::Error;
-use uuid::Uuid;
 
 pub struct ComputeResource {
     pub thread_pool: rayon::ThreadPool,
