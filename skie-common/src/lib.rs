@@ -60,6 +60,7 @@ pub struct FileTable {
 
 pub struct ChunkTable {
     pub hashes: Vec<Hash>,
+    pub indices: Vec<u64>,
     pub file_ids: Vec<FileID>,
     pub sizes: Vec<u64>,
     pub offsets: Vec<u64>,

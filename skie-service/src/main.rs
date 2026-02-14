@@ -83,7 +83,6 @@ async fn main() -> Result<()> {
                     .iter()
                     .any(|path| path.eq(&context.app_config.sync_dir))
             {
-                log::error!("The sync directory was removed! Please restart the service!");
                 anyhow::bail!("The sync directory was removed! Please restart the service!");
             }
         }

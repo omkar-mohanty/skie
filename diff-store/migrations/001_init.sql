@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS files (
 
 CREATE TABLE IF NOT EXISTS chunks (
     hash BLOB PRIMARY KEY,
+    idx INTEGER,
     file_id TEXT,
     size INTEGER,
     FOREIGN KEY(file_id) REFERENCES files(file_id)
