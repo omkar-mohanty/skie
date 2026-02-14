@@ -1,6 +1,6 @@
 mod config;
 pub use config::*;
-use std::{collections::HashMap, ops::Deref, path::PathBuf};
+use std::{collections::HashMap, fmt::Display, ops::Deref, path::PathBuf};
 
 use blake3::Hash;
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,12 @@ impl Deref for FileID {
     type Target = Uuid;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Display for FileID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{}", self.0.to_string().as_str()))
     }
 }
 

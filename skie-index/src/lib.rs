@@ -179,25 +179,29 @@ mod tests {
         let config = test_config();
         let resource = test_resource()?;
 
-        // 1. Create random data
         let mut data = vec![0u8; 1024 * 100];
         rng().fill_bytes(&mut data);
 
-        // 2. Write to a temp file
         let mut file = NamedTempFile::new()?;
         file.write_all(&data)?;
         file.flush()?;
 
         let path = file.path();
-        // 3. Run the functional engine twice on the same file
-        // We clone the path because get_chunk_hashes takes ownership of the PathBuf
-        let res_1 = get_chunk_hashes(path, &resource, &config)?;
-        let res_2 = get_chunk_hashes(path, &resource, &config)?;
 
-        // 4. Compare the BTreeMaps
-        // BTreeMap implements PartialEq, comparing both keys and values in order.
-        assert_eq!(res_1.len(), res_2.len(), "Chunk counts differ between runs");
-        assert_eq!(res_1, res_2, "Hashes or indices are not deterministic");
+        // 3. Get results
+        let mut res_1 = get_chunk_hashes(path, &resource, &config)?;
+        let mut res_2 = get_chunk_hashes(path, &resource, &config)?;
+
+        // 4. SORTING IS MANDATORY
+        // par_bridge() makes the Vec order non-deterministic.
+        res_1.sort_by_key(|c| c.index);
+        res_2.sort_by_key(|c| c.index);
+
+        assert_eq!(res_1.len(), res_2.len(), "Chunk counts differ");
+        assert_eq!(
+            res_1, res_2,
+            "Hashes or indices are not deterministic after sorting"
+        );
         Ok(())
     }
 }
