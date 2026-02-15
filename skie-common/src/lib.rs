@@ -21,6 +21,12 @@ impl Deref for ChunkID {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileID(Uuid);
 
+impl Default for FileID {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Deref for FileID {
     type Target = Uuid;
     fn deref(&self) -> &Self::Target {

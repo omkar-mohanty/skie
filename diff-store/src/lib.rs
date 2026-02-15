@@ -5,7 +5,7 @@ pub use chunk_store::*;
 pub use file_store::*;
 
 use async_trait::async_trait;
-use sqlx::{Any, AnyPool, Pool, any::install_default_drivers, migrate::MigrateError};
+use sqlx::{AnyPool, migrate::MigrateError};
 use thiserror::Error;
 
 /// A Result type specialized for DataStore operations.
@@ -23,16 +23,16 @@ pub type Result<T> = std::result::Result<T, DataStoreError>;
 /// 1. Connection management is centralized.
 /// 2. We avoid "Borrow Checker" hell by passing an immutable reference (`&self`).
 pub struct DataStore {
-    pool: Pool<Any>,
+    pool: AnyPool,
 }
 
 impl DataStore {
     /// Initializes a new DataStore and runs migrations.
     /// Ensures the 3NF schema is ready before any operations begin.
-    pub async fn new(url: &str) -> Result<Self> {
-        install_default_drivers();
-        let pool = AnyPool::connect(url).await?;
-        sqlx::migrate!("./migrations").run(&pool).await?;
+    pub async fn new(pool: AnyPool) -> Result<Self> {
+        let migrator = sqlx::migrate!("db/migrations");
+        migrator.run(&pool).await?;
+
         Ok(Self { pool })
     }
 }
@@ -89,8 +89,17 @@ pub enum DataStoreError {
 }
 #[cfg(test)]
 async fn setup() -> DataStore {
+    use sqlx::any::{AnyPoolOptions, install_default_drivers};
+    // Use PoolOptions to ensure the connection stays alive
+    install_default_drivers();
+    let pool = AnyPoolOptions::new()
+        .max_connections(1) // Force a single connection for stability in memory
+        .idle_timeout(None) // Never let the connection drop due to inactivity
+        .connect("sqlite::memory:")
+        .await
+        .expect("Could not create pool");
     // Using an in-memory database ensures tests are fast and side-effect free
-    DataStore::new("sqlite::memory:")
+    DataStore::new(pool)
         .await
         .expect("Failed to create test store")
 }

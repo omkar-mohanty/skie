@@ -11,5 +11,5 @@ skie-common = {path = "skie-common"}
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2"
 blake3 =  { version = "1.8.3", features = ["serde"] }
-uuid = { version = "1.20.0", features = ["serde"] }
+uuid = { version = "1.20.0", features = ["serde", "v4"] }
 sqlx = { version = "0.8.6", features = ["migrate", "any", "uuid", "runtime-tokio", "sqlite"]}
