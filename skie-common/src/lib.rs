@@ -3,11 +3,20 @@ pub use config::*;
 use std::{collections::HashMap, fmt::Display, ops::Deref, path::PathBuf};
 
 use blake3::Hash;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub type ChunkIndex = usize;
 pub type FileTableIndex = usize;
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq)]
+pub struct ChunkID(blake3::Hash);
+
+impl Deref for ChunkID {
+    type Target = blake3::Hash;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileID(Uuid);
@@ -31,21 +40,6 @@ impl FileID {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChunkTableEntry {
-    pub hash: Hash,
-    pub index: ChunkIndex,
-    pub file_id: String,
-    pub size: u64,
-    pub offset: u64,
-}
-
-impl PartialEq for ChunkTableEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.hash == other.hash
-    }
-}
-
 pub struct FileTable {
     pub file_ids: Vec<FileID>,
     pub names: Vec<String>,
@@ -54,11 +48,8 @@ pub struct FileTable {
 }
 
 pub struct ChunkTable {
-    pub hashes: Vec<Hash>,
-    pub indices: Vec<u64>,
-    pub file_ids: Vec<FileID>,
+    pub hashes: Vec<ChunkID>,
     pub sizes: Vec<u64>,
-    pub offsets: Vec<u64>,
 }
 
 pub struct FileIndex(HashMap<FileID, FileTableIndex>);

@@ -8,6 +8,10 @@ blake3 = { workspace = true }
 thiserror = { workspace = true }
 skie-common = { workspace = true }
 sqlx = { workspace = true }
+async-trait = "0.1.89"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
 
 [features]
 default = ["s3-chunk-storage"]
