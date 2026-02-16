@@ -114,7 +114,7 @@ mod tests {
         store.store(entry).await.expect("Store failed");
 
         // Test: Fetch
-        let fetched = store.fetch_by(&id).await.expect("Fetch failed");
+        let fetched: FileTableEntry = store.fetch_by(&id).await.expect("Fetch failed");
         assert_eq!(fetched.name, "init.txt");
 
         // Test: Update (Upsert)
@@ -126,7 +126,7 @@ mod tests {
         };
         store.store(updated).await.expect("Update failed");
 
-        let fetched_updated = store.fetch_by(&id).await.unwrap();
+        let fetched_updated: FileTableEntry = store.fetch_by(&id).await.unwrap();
         assert_eq!(fetched_updated.name, "moved.txt");
     }
 }

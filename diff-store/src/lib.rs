@@ -1,7 +1,9 @@
 mod chunk_store;
+mod file_section;
 mod file_store;
 
 pub use chunk_store::*;
+pub use file_section::*;
 pub use file_store::*;
 
 use async_trait::async_trait;
@@ -9,7 +11,7 @@ use sqlx::{AnyPool, migrate::MigrateError};
 use thiserror::Error;
 
 /// A Result type specialized for DataStore operations.
-pub type Result<T> = std::result::Result<T, DataStoreError>;
+pub(crate) type Result<T> = std::result::Result<T, DataStoreError>;
 
 /// `DataStore` is the central "Universal Hub" for database interactions.
 ///

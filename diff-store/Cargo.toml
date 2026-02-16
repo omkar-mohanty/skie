@@ -12,6 +12,10 @@ async-trait = "0.1.89"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+tempfile = "3"
+fastcdc = "3"
+anyhow = "1"
+rand = "0.9"
 
 [features]
 default = ["s3-chunk-storage"]
