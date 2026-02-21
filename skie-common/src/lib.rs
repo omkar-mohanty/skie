@@ -1,6 +1,7 @@
 mod config;
+use camino::Utf8PathBuf as PathBuf;
 pub use config::*;
-use std::{collections::HashMap, fmt::Display, ops::Deref, path::PathBuf};
+use std::{collections::HashMap, fmt::Display, ops::Deref};
 
 use blake3::Hash;
 use uuid::Uuid;

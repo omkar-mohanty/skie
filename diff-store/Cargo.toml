@@ -9,11 +9,11 @@ thiserror = { workspace = true }
 skie-common = { workspace = true }
 sqlx = { workspace = true }
 async-trait = "0.1.89"
+fastcdc = "3"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 tempfile = "3"
-fastcdc = "3"
 anyhow = "1"
 rand = "0.9"
 

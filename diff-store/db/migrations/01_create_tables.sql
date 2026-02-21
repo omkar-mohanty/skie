@@ -18,9 +18,9 @@ CREATE TABLE chunks (
 CREATE TABLE file_sections (
     file_id TEXT,
     chunk_hash BLOB,
-    chunk_index INTEGER, -- 0, 1, 2...
+    length INTEGER, -- 0, 1, 2...
     offset INTEGER,      -- Where it starts
-    PRIMARY KEY (file_id, chunk_index),
+    PRIMARY KEY (file_id, offset),
     FOREIGN KEY(file_id) REFERENCES files(file_id),
     FOREIGN KEY(chunk_hash) REFERENCES chunks(hash)
 );

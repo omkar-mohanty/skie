@@ -2,16 +2,74 @@ mod chunk_store;
 mod file_section;
 mod file_store;
 
+use fastcdc::v2020::StreamCDC;
+use std::io::Read;
+
 pub use chunk_store::*;
 pub use file_section::*;
 pub use file_store::*;
 
 use async_trait::async_trait;
+use skie_common::FileID;
 use sqlx::{AnyPool, migrate::MigrateError};
 use thiserror::Error;
 
 /// A Result type specialized for DataStore operations.
 pub(crate) type Result<T> = std::result::Result<T, DataStoreError>;
+
+pub struct ChunkConfig {
+    pub min_chunk_size: u32,
+    pub avg_chunk_size: u32,
+    pub max_chunk_size: u32,
+}
+
+impl Default for ChunkConfig {
+    fn default() -> Self {
+        Self {
+            min_chunk_size: 512,
+            avg_chunk_size: 1024,
+            max_chunk_size: 2048,
+        }
+    }
+}
+
+/// A helper for chunking file contents accepts a `skie_common::FileID` and a `Read<u8>` as arguments and
+/// gives out a tuple of chunk table entries and file section entries
+pub fn chunk_source<R: Read>(
+    file_id: &FileID,
+    source: R,
+    chunk_config: Option<ChunkConfig>,
+) -> Result<(Vec<ChunkTableEntry>, Vec<FileSectionEntry>)> {
+    let chunk_config = chunk_config.unwrap_or_default();
+
+    let ChunkConfig {
+        min_chunk_size,
+        avg_chunk_size,
+        max_chunk_size,
+    } = chunk_config;
+
+    let chunker = StreamCDC::new(source, min_chunk_size, avg_chunk_size, max_chunk_size);
+    let mut chunks = Vec::new();
+    let mut sections = Vec::new();
+
+    for chunk in chunker {
+        let chunk = chunk?;
+        let hash = blake3::hash(&chunk.data).as_bytes().to_vec();
+
+        chunks.push(ChunkTableEntry {
+            hash: hash.clone(),
+            size: chunk.length as i64,
+        });
+
+        sections.push(FileSectionEntry {
+            file_id: file_id.to_string(),
+            chunk_hash: hash,
+            length: chunk.length as i64,
+            offset: chunk.offset as i64,
+        });
+    }
+    Ok((chunks, sections))
+}
 
 /// `DataStore` is the central "Universal Hub" for database interactions.
 ///
@@ -82,6 +140,8 @@ pub trait Fetch<ID: Send + Sync, Data: Send + Sync> {
 
 #[derive(Error, Debug)]
 pub enum DataStoreError {
+    #[error("Error while chunking: {0}")]
+    ChunkingError(#[from] fastcdc::v2020::Error),
     #[error("Database Error: {0}")]
     DbError(#[from] sqlx::Error),
     #[error("Migration Error: {0}")]

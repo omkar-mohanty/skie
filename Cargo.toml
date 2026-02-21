@@ -2,7 +2,7 @@
 members = [
     "skie-service",
     "skie-cli",
-    "skie-index", "skie-common", "diff-store",
+    "skie-common", "diff-store",
 ]
 resolver = "2"
 
@@ -13,3 +13,4 @@ thiserror = "2"
 blake3 =  { version = "1.8.3", features = ["serde"] }
 uuid = { version = "1.20.0", features = ["serde", "v4"] }
 sqlx = { version = "0.8.6", features = ["migrate", "any", "uuid", "runtime-tokio", "sqlite"]}
+camino = "1.2.2"

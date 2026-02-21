@@ -8,3 +8,4 @@ serde = { workspace = true, features = ["derive"] }
 directories = "6.0.0"
 uuid =  { workspace = true }
 blake3 = { workspace =  true } 
+camino = { workspace = true }
