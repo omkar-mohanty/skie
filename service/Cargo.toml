@@ -1,5 +1,5 @@
 [package]
-name = "diff-service"
+name = "diff-d"
 version = "0.1.0"
 edition = "2024"
 
