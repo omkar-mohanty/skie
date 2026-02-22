@@ -7,9 +7,11 @@ use notify_debouncer_full::{
 };
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, time::Duration};
+use store::ChunkConfig;
 
 #[derive(Deserialize, Serialize)]
 struct ServiceConfig {
+    chunk_config: ChunkConfig,
     sync_dir: Vec<PathBuf>,
     debounce_ms: u64,
 }
@@ -17,6 +19,7 @@ struct ServiceConfig {
 impl Default for ServiceConfig {
     fn default() -> Self {
         Self {
+            chunk_config: ChunkConfig::default(),
             sync_dir: Vec::default(),
             debounce_ms: 500,
         }

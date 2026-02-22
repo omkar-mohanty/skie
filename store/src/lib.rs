@@ -8,6 +8,7 @@ pub use file_store::*;
 use async_trait::async_trait;
 use common::FileID;
 use fastcdc::v2020::StreamCDC;
+use serde::{Deserialize, Serialize};
 use sqlx::{AnyPool, migrate::MigrateError};
 use std::io::Read;
 use thiserror::Error;
@@ -19,7 +20,7 @@ pub(crate) type Result<T> = std::result::Result<T, DataStoreError>;
 ///
 /// These values determine the granularity of the deduplication. Smaller chunks
 /// provide better deduplication ratios but increase database metadata overhead.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct ChunkConfig {
     /// The minimum size of a chunk in bytes.
     pub min_chunk_size: u32,
