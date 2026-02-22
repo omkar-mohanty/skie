@@ -3,15 +3,24 @@ use common::*;
 use crossbeam_channel::unbounded;
 use notify_debouncer_full::{
     new_debouncer,
-    notify::{EventKind, RecursiveMode, event::RemoveKind},
+    notify::{EventKind, RecursiveMode},
 };
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, time::Duration};
 
-#[derive(Default, Deserialize, Serialize)]
-struct AppConfig {
-    sync_dir: PathBuf,
+#[derive(Deserialize, Serialize)]
+struct ServiceConfig {
+    sync_dir: Vec<PathBuf>,
     debounce_ms: u64,
+}
+
+impl Default for ServiceConfig {
+    fn default() -> Self {
+        Self {
+            sync_dir: Vec::default(),
+            debounce_ms: 500,
+        }
+    }
 }
 
 #[tokio::main]
@@ -35,19 +44,15 @@ async fn main() -> Result<()> {
         }
 
         if !config_path.exists() {
-            let config = AppConfig::default();
+            let config = ServiceConfig::default();
             let config_string = toml::to_string(&config)?;
             fs::write(&config_path, config_string)?;
             config
         } else {
             let contents = fs::read(&config_path)?;
-            toml::from_slice::<AppConfig>(&contents)?
+            toml::from_slice::<ServiceConfig>(&contents)?
         }
     };
-
-    if !app_config.sync_dir.exists() {
-        fs::create_dir_all(&app_config.sync_dir)?;
-    }
 
     let (event_sender, event_receiver) = unbounded();
 
@@ -58,7 +63,9 @@ async fn main() -> Result<()> {
     )
     .unwrap();
 
-    debounder.watch(&app_config.sync_dir, RecursiveMode::Recursive)?;
+    for dir in &app_config.sync_dir {
+        debounder.watch(&dir, RecursiveMode::Recursive)?;
+    }
 
     while let Ok(events) = event_receiver.recv()? {
         //TODO Need to handle a special case where the sync directory is deleted while skie is running.
@@ -78,17 +85,6 @@ async fn main() -> Result<()> {
 
             is_valid_kind && is_not_internal
         });
-
-        for event in events_iter {
-            // This is for an edge case when skie has started running and during operation the sync directory was removed.
-            // In this weird edge case it is better to restart skie than to continue operation.
-            if let EventKind::Remove(remove_kind) = &event.kind
-                && let RemoveKind::Folder = remove_kind
-                && event.paths.iter().any(|path| path.eq(&app_config.sync_dir))
-            {
-                anyhow::bail!("The sync directory was removed! Please restart the service!");
-            }
-        }
     }
 
     Ok(())
