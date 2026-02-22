@@ -17,6 +17,7 @@ use thiserror::Error;
 /// A Result type specialized for DataStore operations.
 pub(crate) type Result<T> = std::result::Result<T, DataStoreError>;
 
+#[derive(Clone, Copy, Debug)]
 pub struct ChunkConfig {
     pub min_chunk_size: u32,
     pub avg_chunk_size: u32,
