@@ -5,7 +5,14 @@ use notify_debouncer_full::{
     new_debouncer,
     notify::{EventKind, RecursiveMode, event::RemoveKind},
 };
-use std::{fs, time::Duration};
+use serde::{Deserialize, Serialize};
+use std::{fs, path::PathBuf, time::Duration};
+
+#[derive(Default, Deserialize, Serialize)]
+struct AppConfig {
+    sync_dir: PathBuf,
+    debounce_ms: u64,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -42,17 +49,16 @@ async fn main() -> Result<()> {
         fs::create_dir_all(&app_config.sync_dir)?;
     }
 
-    let context = SkieContext::new(app_config);
     let (event_sender, event_receiver) = unbounded();
 
     let mut debounder = new_debouncer(
-        Duration::from_millis(context.app_config.debounce_ms),
+        Duration::from_millis(app_config.debounce_ms),
         None,
         event_sender,
     )
     .unwrap();
 
-    debounder.watch(&context.app_config.sync_dir, RecursiveMode::Recursive)?;
+    debounder.watch(&app_config.sync_dir, RecursiveMode::Recursive)?;
 
     while let Ok(events) = event_receiver.recv()? {
         //TODO Need to handle a special case where the sync directory is deleted while skie is running.
@@ -78,10 +84,7 @@ async fn main() -> Result<()> {
             // In this weird edge case it is better to restart skie than to continue operation.
             if let EventKind::Remove(remove_kind) = &event.kind
                 && let RemoveKind::Folder = remove_kind
-                && event
-                    .paths
-                    .iter()
-                    .any(|path| path.eq(&context.app_config.sync_dir))
+                && event.paths.iter().any(|path| path.eq(&app_config.sync_dir))
             {
                 anyhow::bail!("The sync directory was removed! Please restart the service!");
             }
