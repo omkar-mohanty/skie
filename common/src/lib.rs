@@ -1,10 +1,26 @@
-mod config;
-pub use config::*;
 use std::{fmt::Display, ops::Deref};
 use uuid::Uuid;
 
 pub type ChunkIndex = usize;
 pub type FileTableIndex = usize;
+
+use directories::UserDirs;
+use std::path::PathBuf;
+
+const DIFF_SYNC_DIR_NAME: &str = "Diff";
+
+pub fn get_default_sync_path() -> PathBuf {
+    if let Some(user_dirs) = UserDirs::new() {
+        // Try to get Documents first
+        if let Some(docs) = user_dirs.document_dir() {
+            return docs.join(DIFF_SYNC_DIR_NAME);
+        }
+        return user_dirs.home_dir().join(DIFF_SYNC_DIR_NAME);
+    }
+
+    // Absolute final fallback: current directory
+    PathBuf::from(DIFF_SYNC_DIR_NAME)
+}
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq)]
 pub struct ChunkID(blake3::Hash);
