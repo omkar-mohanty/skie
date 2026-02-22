@@ -1,30 +1,38 @@
 mod chunk_store;
 mod file_section;
 mod file_store;
-
-use fastcdc::v2020::StreamCDC;
-use std::io::Read;
-
 pub use chunk_store::*;
 pub use file_section::*;
 pub use file_store::*;
 
 use async_trait::async_trait;
 use common::FileID;
+use fastcdc::v2020::StreamCDC;
 use sqlx::{AnyPool, migrate::MigrateError};
+use std::io::Read;
 use thiserror::Error;
 
 /// A Result type specialized for DataStore operations.
 pub(crate) type Result<T> = std::result::Result<T, DataStoreError>;
 
+/// Configuration parameters for the Content-Defined Chunking (CDC) algorithm.
+///
+/// These values determine the granularity of the deduplication. Smaller chunks
+/// provide better deduplication ratios but increase database metadata overhead.
 #[derive(Clone, Copy, Debug)]
 pub struct ChunkConfig {
+    /// The minimum size of a chunk in bytes.
     pub min_chunk_size: u32,
+    /// The desired average size of a chunk in bytes.
+    /// Note: `fastcdc` usually requires this to be at least 1024.
     pub avg_chunk_size: u32,
+    /// The maximum size a chunk can reach before being forced to cut.
     pub max_chunk_size: u32,
 }
 
 impl Default for ChunkConfig {
+    /// Returns the recommended default settings for general-purpose file sync.
+    /// (512B min, 1KB avg, 2KB max)
     fn default() -> Self {
         Self {
             min_chunk_size: 512,
@@ -34,8 +42,24 @@ impl Default for ChunkConfig {
     }
 }
 
-/// A helper for chunking file contents accepts a `skie_common::FileID` and a `Read<u8>` as arguments and
-/// gives out a tuple of chunk table entries and file section entries
+/// Streams data from a source and partitions it into variable-sized chunks using FastCDC.
+///
+/// This function is the core of the indexing engine. It transforms a raw byte stream
+/// into structural metadata ready for persistence in the `DataStore`.
+///
+/// # Arguments
+/// * `file_id` - The unique identifier of the file being processed.
+/// * `source` - Any type implementing [`Read`], such as a `File` or `Cursor`.
+/// * `chunk_config` - Optional CDC parameters. If `None`, defaults to 1KB average chunks.
+///
+/// # Returns
+/// A result containing a tuple:
+/// 1. `Vec<ChunkTableEntry>`: The unique physical data blocks identified.
+/// 2. `Vec<FileSectionEntry>`: The logical map linking this file to its chunks.
+///
+/// # Errors
+/// Returns an error if the source reader fails or if the CDC parameters
+/// violate the underlying algorithm's constraints.
 pub fn chunk_source<R: Read>(
     file_id: &FileID,
     source: R,
@@ -150,6 +174,7 @@ pub enum DataStoreError {
     #[error("Requested record was not found in the store")]
     NotFound,
 }
+
 #[cfg(test)]
 async fn setup() -> DataStore {
     use sqlx::any::{AnyPoolOptions, install_default_drivers};
