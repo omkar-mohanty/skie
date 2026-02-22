@@ -1,0 +1,11 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+directories = "6.0.0"
+uuid =  { workspace = true }
+blake3 = { workspace =  true } 
+camino = { workspace = true }
