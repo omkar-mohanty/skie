@@ -1,5 +1,6 @@
 mod common;
-use std::io::BufReader;
+
+use std::io::Cursor;
 
 use anyhow::Result;
 use common::*;
@@ -15,14 +16,16 @@ async fn test_reconstruction_integrity() -> Result<()> {
     rng().fill_bytes(&mut buffer);
 
     let hash = blake3::hash(&buffer).as_bytes().to_vec();
+
+    let mut cursor = Cursor::new(buffer);
+    let (chunks, sections) = chunk_source(&file_id, &mut cursor, None)?;
+
     let file_entry = FileTableEntry {
         hash,
         file_id: file_id.to_string(),
         name: "test.bin".to_uppercase(),
         path: "test.path".to_lowercase(),
     };
-
-    let (chunks, sections) = chunk_buffer(&file_id, &buffer);
 
     // Store metadata and chunks
     store.store(file_entry).await?;
@@ -40,7 +43,7 @@ async fn test_reconstruction_integrity() -> Result<()> {
         );
         current_offset += section.length;
     }
-    assert_eq!(current_offset as usize, buffer.len());
+    assert_eq!(current_offset as usize, cursor.get_ref().len());
 
     Ok(())
 }
@@ -52,14 +55,26 @@ async fn test_file_data_change_delta() -> Result<()> {
 
     // 1. Initial State: All zeros
     let data_v1 = vec![0u8; 4 * KB];
-    let (c1, s1) = chunk_buffer(&file_id, &data_v1);
+    let hash = blake3::hash(&data_v1).as_bytes().to_vec();
+    let mut cursor = Cursor::new(data_v1);
+    let (c1, s1) = chunk_source(&file_id, &mut cursor, None)?;
+
+    store
+        .store(FileTableEntry {
+            file_id: file_id.to_string(),
+            name: "Testfile".to_string(),
+            path: "somepath".to_string(),
+            hash,
+        })
+        .await?;
     store.store_all(c1).await?;
     store.store_all(s1).await?;
 
     // 2. Change: Invert a small slice in the middle
-    let mut data_v2 = data_v1.clone();
+    let mut data_v2 = vec![0u8; 4 * KB];
     data_v2[1000..1200].fill(0xFF);
-    let (c2, s2) = chunk_buffer(&file_id, &data_v2);
+    let mut cursor = Cursor::new(data_v2);
+    let (c2, s2) = chunk_source(&file_id, &mut cursor, None)?;
 
     // Store update (UPSERT handles the offset conflicts)
     store.store_all(c2).await?;
