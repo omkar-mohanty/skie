@@ -19,6 +19,12 @@ impl Deref for ChunkID {
     }
 }
 
+impl AsRef<[u8; 32]> for ChunkID {
+    fn as_ref(&self) -> &[u8; 32] {
+        &self.0.as_bytes()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct FileID(Uuid);
 
@@ -31,6 +37,12 @@ impl Default for FileID {
 impl Deref for FileID {
     type Target = Uuid;
     fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<Uuid> for FileID {
+    fn as_ref(&self) -> &Uuid {
         &self.0
     }
 }
