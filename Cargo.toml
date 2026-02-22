@@ -1,13 +1,13 @@
 [workspace]
 members = [
-    "skie-service",
-    "skie-cli",
-    "skie-common", "diff-store",
+    "service",
+    "ctl",
+    "common", "store",
 ]
 resolver = "2"
 
 [workspace.dependencies]
-skie-common = {path = "skie-common"}
+common = {path = "common"}
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2"
 blake3 =  { version = "1.8.3", features = ["serde"] }
