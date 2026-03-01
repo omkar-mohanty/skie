@@ -318,6 +318,7 @@ name = "diff-d"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "camino",
  "common",
  "crossbeam-channel",
  "env_logger",
