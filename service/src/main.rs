@@ -23,9 +23,9 @@ struct ServiceConfig {
 }
 
 pub struct OsEvent {
-    kind: OsEventKind,
-    paths: Vec<Utf8PathBuf>,
-    time: Instant,
+    pub kind: OsEventKind,
+    pub paths: Vec<Utf8PathBuf>,
+    pub time: Instant,
 }
 
 pub enum OsEventKind {
@@ -83,6 +83,7 @@ pub fn build_events_iter<I: Iterator<Item = DebouncedEvent>>(
     os_events
 }
 
+/// TODO: Add additonal information to `OsEventKind`
 impl From<EventKind> for OsEventKind {
     fn from(value: EventKind) -> Self {
         use EventKind::*;
