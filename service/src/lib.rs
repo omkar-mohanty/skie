@@ -10,6 +10,9 @@ use notify_debouncer_full::{
 use std::time::Instant;
 use std::{io::Cursor, sync::Arc};
 use store::{ChunkConfig, ChunkedSource, DataStore, FileTableEntry, Persist, chunk_source};
+// Plugin extension point
+mod plugin;
+pub use plugin::Plugin;
 
 pub struct OsEvent {
     pub kind: EventKind,
