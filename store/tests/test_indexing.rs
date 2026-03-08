@@ -7,7 +7,7 @@ use std::io::Cursor;
 use anyhow::Result;
 use common::FileID;
 use rand::{RngCore, rng};
-use store::{Fetch, FileSectionEntry, FileTableEntry, Persist, chunk_source};
+use store::{ChunkedSource, Fetch, FileSectionEntry, FileTableEntry, Persist, chunk_source};
 use store_test_common::*;
 
 #[tokio::test]
@@ -20,7 +20,11 @@ async fn test_reconstruction_integrity() -> Result<()> {
     let hash = blake3::hash(&buffer).as_bytes().to_vec();
 
     let mut cursor = Cursor::new(buffer);
-    let (chunks, sections) = chunk_source(&file_id, &mut cursor, None)?;
+    let ChunkedSource {
+        chunks,
+        file_sections,
+        ..
+    } = chunk_source(&file_id, &mut cursor, None)?;
 
     let file_entry = FileTableEntry {
         hash,
@@ -32,7 +36,7 @@ async fn test_reconstruction_integrity() -> Result<()> {
     // Store metadata and chunks
     store.store(file_entry).await?;
     store.store_all(chunks).await?;
-    store.store_all(sections).await?;
+    store.store_all(file_sections).await?;
 
     // Fetch and verify order
     let fetched_sections: Vec<FileSectionEntry> = store.fetch_by(&file_id).await?;
@@ -59,7 +63,13 @@ async fn test_file_data_change_delta() -> Result<()> {
     let data_v1 = vec![0u8; 4 * KB];
     let hash = blake3::hash(&data_v1).as_bytes().to_vec();
     let mut cursor = Cursor::new(data_v1);
-    let (c1, s1) = chunk_source(&file_id, &mut cursor, None)?;
+    let chunked_source = chunk_source(&file_id, &mut cursor, None)?;
+
+    let ChunkedSource {
+        chunks: c1,
+        file_sections: s1,
+        ..
+    } = chunked_source;
 
     store
         .store(FileTableEntry {
@@ -76,9 +86,14 @@ async fn test_file_data_change_delta() -> Result<()> {
     let mut data_v2 = vec![0u8; 4 * KB];
     data_v2[1000..1200].fill(0xFF);
     let mut cursor = Cursor::new(data_v2);
-    let (c2, s2) = chunk_source(&file_id, &mut cursor, None)?;
 
-    // Store update (UPSERT handles the offset conflicts)
+    let chunked_source = chunk_source(&file_id, &mut cursor, None)?;
+
+    let ChunkedSource {
+        chunks: c2,
+        file_sections: s2,
+        ..
+    } = chunked_source; // Store update (UPSERT handles the offset conflicts)
     store.store_all(c2).await?;
     store.store_all(s2).await?;
 

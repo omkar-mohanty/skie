@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod chunk_store;
+mod file_path;
 mod file_section;
 mod file_store;
-mod file_path;
 
+use blake3::CHUNK_LEN;
 pub use chunk_store::*;
 pub use file_section::*;
 pub use file_store::*;
@@ -47,6 +48,12 @@ impl Default for ChunkConfig {
     }
 }
 
+pub struct ChunkedSource {
+    pub chunks: Vec<ChunkTableEntry>,
+    pub file_sections: Vec<FileSectionEntry>,
+    pub file_hash: Vec<u8>,
+}
+
 /// Streams data from a source and partitions it into variable-sized chunks using FastCDC.
 ///
 /// This function is the core of the indexing engine. It transforms a raw byte stream
@@ -69,7 +76,7 @@ pub fn chunk_source<R: Read>(
     file_id: &FileID,
     source: R,
     chunk_config: Option<ChunkConfig>,
-) -> Result<(Vec<ChunkTableEntry>, Vec<FileSectionEntry>)> {
+) -> Result<ChunkedSource> {
     let chunk_config = chunk_config.unwrap_or_default();
 
     let ChunkConfig {
@@ -78,27 +85,37 @@ pub fn chunk_source<R: Read>(
         max_chunk_size,
     } = chunk_config;
 
+    let mut hasher = blake3::Hasher::new();
+
     let chunker = StreamCDC::new(source, min_chunk_size, avg_chunk_size, max_chunk_size);
     let mut chunks = Vec::new();
-    let mut sections = Vec::new();
+    let mut file_sections = Vec::new();
 
     for chunk in chunker {
         let chunk = chunk?;
-        let hash = blake3::hash(&chunk.data).as_bytes().to_vec();
+        hasher.update(&chunk.data);
+
+        let hash = hasher.finalize().as_bytes().to_vec();
 
         chunks.push(ChunkTableEntry {
             hash: hash.clone(),
             size: chunk.length as i64,
         });
 
-        sections.push(FileSectionEntry {
+        file_sections.push(FileSectionEntry {
             file_id: file_id.to_string(),
             chunk_hash: hash,
             length: chunk.length as i64,
             offset: chunk.offset as i64,
         });
     }
-    Ok((chunks, sections))
+    let file_hash = hasher.finalize().as_bytes().to_vec();
+
+    Ok(ChunkedSource {
+        chunks,
+        file_sections,
+        file_hash,
+    })
 }
 
 /// `DataStore` is the central "Universal Hub" for database interactions.

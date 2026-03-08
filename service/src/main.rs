@@ -3,18 +3,14 @@
 use anyhow::Result;
 use common::*;
 use crossbeam_channel::unbounded;
+use diff_d::OsEvent;
 use notify_debouncer_full::{
     new_debouncer,
     notify::{EventKind, RecursiveMode},
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    fs,
-    path::PathBuf,
-    time::Duration,
-};
+use std::{fs, path::PathBuf, time::Duration};
 use store::ChunkConfig;
-use diff_d::build_events_iter;
 
 #[derive(Deserialize, Serialize)]
 struct ServiceConfig {
@@ -98,7 +94,7 @@ async fn main() -> Result<()> {
                 is_valid_kind && is_not_internal
             })
             .peekable();
-        let os_events = build_events_iter(events_iter);
+        let os_events: Vec<OsEvent> = events_iter.map(|event| event.into()).collect();
     }
 
     Ok(())
