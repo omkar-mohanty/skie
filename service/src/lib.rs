@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::Result;
-use camino::{Utf8DirEntry, Utf8PathBuf};
+use camino::Utf8PathBuf;
 use common::FileID;
 use notify_debouncer_full::{
     DebouncedEvent,
     notify::event::{Event, EventKind},
 };
+use std::time::Instant;
 use std::{io::Cursor, sync::Arc};
-use std::{iter::Peekable, time::Instant};
 use store::{ChunkConfig, ChunkedSource, DataStore, FileTableEntry, Persist, chunk_source};
 
 pub struct OsEvent {
