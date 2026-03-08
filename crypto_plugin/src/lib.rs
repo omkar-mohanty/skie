@@ -12,7 +12,7 @@ use base64::{engine::general_purpose, Engine as _};
 use log::info;
 
 use store::{ChunkTableEntry, FileTableEntry, FileSectionEntry};
-use diff_d::Plugin;
+use plugin::{Plugin, PluginFactory};
 
 /// CryptoPlugin holds the AES key.
 pub struct CryptoPlugin {
@@ -42,7 +42,9 @@ impl Plugin for CryptoPlugin {
     }
 }
 
-// Register our plugin at compile time
-inventory::submit! {
-    Box::new(CryptoPlugin::new()) as Box<dyn Plugin>
+/// Factory function to create a new CryptoPlugin instance
+fn crypto_plugin_factory() -> Box<dyn Plugin> {
+    Box::new(CryptoPlugin::new())
 }
+// Register our plugin factory at compile time
+inventory::submit!(PluginFactory(crypto_plugin_factory));

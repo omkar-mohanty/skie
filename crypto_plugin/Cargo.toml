@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-diff-d = { path = "service" }
-store = { path = "store" }
+plugin = { path = "../plugin" }
+store = { path = "../store" }
 async-trait = "0.1.89"
-inventory = "0.1.12"
+inventory = "0.3"
 camino = { workspace = true }
 aes-gcm = "0.10"
 base64 = "0.21"

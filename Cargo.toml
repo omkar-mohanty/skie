@@ -4,6 +4,7 @@ members = [
     "ctl",
     "common",
     "store",
+    "plugin",
     "crypto_plugin",
 ]
 resolver = "2"

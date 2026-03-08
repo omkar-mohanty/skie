@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Plugin extension point for the Reactor/service layer.
-//! Plugins are collected at compile time via the `inventory` crate.
+//! Core Plugin trait and registration for the CAS system.
+//! Plugins are collected at compile-time via the `inventory` crate.
 
 use async_trait::async_trait;
 use camino::Utf8PathBuf;
 use store::{ChunkTableEntry, FileTableEntry, FileSectionEntry};
 
-/// Hooks for custom logic on Reactor events.
+/// Hooks for custom logic on CAS (content-addressable store) events.
 #[async_trait]
 pub trait Plugin: Sync + Send + 'static {
     /// Called after a file metadata upsert (create or rename).
@@ -23,5 +23,9 @@ pub trait Plugin: Sync + Send + 'static {
     async fn on_sections_stored(&self, _sections: &[FileSectionEntry]) {}
 }
 
-/// Collect all registered plugins.
-inventory::collect!(Box<dyn Plugin>);
+/// Factory function wrapper for plugins.
+/// Holds a pointer to a function that returns a boxed Plugin.
+pub struct PluginFactory(pub fn() -> Box<dyn Plugin>);
+
+/// Collect all registered plugin factories.
+inventory::collect!(PluginFactory);
