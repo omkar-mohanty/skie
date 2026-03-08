@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use camino::Utf8PathBuf;
-use store::{ChunkTableEntry, FileTableEntry, FileSectionEntry};
+use store::{ChunkTableEntry, FileSectionEntry, FileTableEntry};
 
 /// Hooks for custom logic on CAS (content-addressable store) events.
 #[async_trait]
@@ -27,5 +27,4 @@ pub trait Plugin: Sync + Send + 'static {
 /// Holds a pointer to a function that returns a boxed Plugin.
 pub struct PluginFactory(pub fn() -> Box<dyn Plugin>);
 
-/// Collect all registered plugin factories.
 inventory::collect!(PluginFactory);
