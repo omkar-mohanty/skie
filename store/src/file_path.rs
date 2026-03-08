@@ -184,10 +184,17 @@ mod tests {
         want.sort();
         assert_eq!(got, want);
 
-        // Empty operations
-        store.store_all(Vec::<FileTableEntry>::new()).await?;
-        let empty: Vec<FileTableEntry> = store.fetch_many(&[]).await?;
-        assert!(empty.is_empty());
+        // Empty PathEntry batch should not change row count, and empty fetch_many yields no entries
+        let before: i64 = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM files")
+            .fetch_one(&store.pool)
+            .await?;
+        store.store_all(Vec::<PathEntry>::new()).await?;
+        let after: i64 = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM files")
+            .fetch_one(&store.pool)
+            .await?;
+        assert_eq!(before, after, "Empty store_all should not modify files count");
+        let empty = store.fetch_many(&Vec::<Utf8PathBuf>::new()).await?;
+        assert!(empty.is_empty(), "fetch_many on empty input should return empty Vec");
 
         Ok(())
     }
