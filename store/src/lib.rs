@@ -1,6 +1,8 @@
 mod chunk_store;
 mod file_section;
 mod file_store;
+mod file_path;
+
 pub use chunk_store::*;
 pub use file_section::*;
 pub use file_store::*;
