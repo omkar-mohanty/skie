@@ -5,7 +5,7 @@
 //! This module provides structures and implementations to fetch file entries by their
 //! paths. It is particularly useful when handling file renames, allowing the data store
 //! to resolve path changes and map them to the corresponding file IDs.
-use crate::{DataStore, DataStoreError, Fetch, Result};
+use crate::{DataStore, DataStoreError, Fetch, Persist, Result};
 use async_trait::async_trait;
 use camino::Utf8PathBuf;
 
@@ -13,6 +13,16 @@ use camino::Utf8PathBuf;
 pub struct PathEntry {
     pub path: String,
     pub file_id: String,
+}
+
+#[async_trait]
+impl Persist<PathEntry> for DataStore {
+    async fn store(&self, item: PathEntry) -> Result<()> {
+        todo!()
+    }
+    async fn store_all(&self, items: Vec<PathEntry>) -> Result<()> {
+        todo!()
+    }
 }
 
 #[async_trait]
