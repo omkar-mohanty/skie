@@ -11,6 +11,8 @@ sqlx = { workspace = true }
 async-trait = "0.1.89"
 fastcdc = "3"
 serde = { version = "1.0", features = ["derive"] }
+camino = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
