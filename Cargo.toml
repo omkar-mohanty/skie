@@ -2,7 +2,9 @@
 members = [
     "service",
     "ctl",
-    "common", "store",
+    "common",
+    "store",
+    "crypto_plugin",
 ]
 resolver = "2"
 
