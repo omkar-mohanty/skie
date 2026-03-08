@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod store_test_common;
 use anyhow::Result;
 use common::FileID;

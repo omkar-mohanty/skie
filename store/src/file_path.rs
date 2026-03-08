@@ -1,3 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+//! Module for storing and querying file paths in the data store.
+//!
+//! This module provides structures and implementations to fetch file entries by their
+//! paths. It is particularly useful when handling file renames, allowing the data store
+//! to resolve path changes and map them to the corresponding file IDs.
 use crate::{DataStore, DataStoreError, Fetch, Result};
 use async_trait::async_trait;
 use camino::Utf8PathBuf;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use store::DataStore;
 
 pub const KB: usize = 1024;

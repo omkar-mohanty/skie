@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use crate::{DataStore, DataStoreError, Fetch, Persist, Result};
 use async_trait::async_trait;
 use common::FileID;

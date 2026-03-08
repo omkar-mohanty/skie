@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use camino::Utf8PathBuf;
 use std::{time::Instant, iter::Peekable };
 use notify_debouncer_full::{notify::event::{EventKind, Event}, DebouncedEvent};

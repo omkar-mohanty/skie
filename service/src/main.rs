@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use anyhow::Result;
 use common::*;
 use crossbeam_channel::unbounded;

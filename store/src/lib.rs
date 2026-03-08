@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 mod chunk_store;
 mod file_section;
 mod file_store;
